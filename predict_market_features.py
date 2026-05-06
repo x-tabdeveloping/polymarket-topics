@@ -87,7 +87,7 @@ def kfold_cv(
 def main():
     RESULTS_DIR.mkdir(exist_ok=True, parents=True)
     markets = load_data(FEATURE_NAMES, FEATURE_TRANSFORMS)
-    questions, descriptions = list(markets["questions"]), list(markets["descriptions"])
+    questions, descriptions = list(markets["question"]), list(markets["description"])
     text_features = {
         "questions": questions,
         "descriptions": descriptions,
@@ -113,7 +113,7 @@ def main():
         print("Saving embeddings...")
         joblib.dump(embeddings, EMBEDDING_CACHE_PATH)
     # Assembling feature matrix from DataFrame
-    Y = feature_matrix(markets)
+    Y = feature_matrix(markets, FEATURE_NAMES)
 
     ################# CALCULATING RAW EMBEDDING SCORES ###############
     raw_scores_path = RESULTS_DIR.joinpath("raw_embedding_scores.ndjson")
@@ -131,6 +131,7 @@ def main():
                 X_name = f"{emb_name}|{text_feature_name}"
                 print(f"------{X_name}------")
                 scores.extend(kfold_cv(X, Y, REGRESSION_MODELS, X_name))
+        write_ndjson(scores, raw_scores_path)
 
     ################# TOPIC MODELLING ###############
     TOPIC_MODEL_DIR.mkdir(exist_ok=True)
@@ -154,10 +155,11 @@ def main():
                 text_features["questions+descriptions"],
                 embeddings=text_embeddings["questions+descriptions"],
             )
+            topic_model.print_topics()
             topic_model.to_disk(TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder}.joblib"))
             np.save(
-                doc_topic_matrix,
                 TOPIC_MODEL_DIR.joinpath(f"dtm_senstopic-{encoder}.npy"),
+                doc_topic_matrix,
             )
         X_name = f"topics_{encoder}"
         scores.extend(kfold_cv(doc_topic_matrix, Y, REGRESSION_MODELS, X_name))
