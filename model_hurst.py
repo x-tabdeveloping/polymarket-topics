@@ -2,15 +2,17 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import statsmodels.api as sm
-import statsmodels.formula.api as smf
+from scipy.stats import Normal
 from sentence_transformers import SentenceTransformer
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 from turftopic import SensTopic
+
+FEATURE_NAMES = ["hurst_exponent"]
 
 encoder = SentenceTransformer("all-MiniLM-L6-v2", model_kwargs=dict(dtype="float64"))
 
@@ -18,6 +20,7 @@ markets = pd.read_csv("data/market_metadata.csv").set_index("id")
 hurst = pd.read_csv("data/hurst_exponent.csv").set_index("market_id")
 markets = markets.join(hurst)
 markets = markets.dropna(subset="hurst_exponent")
+markets = markets[(markets["hurst_exponent"] >= 0) & (markets["hurst_exponent"] <= 1)]
 
 questions = list(markets["question"])
 descriptions = list(markets["description"])
@@ -38,11 +41,13 @@ embeddings = {
     for feat_name, text in text_features.items()
 }
 
+y = np.array(markets["hurst_exponent"])
+y = Normal().icdf(y)
+
 scores = []
 for feat_name, text in text_features.items():
     print(f"------{feat_name}------")
     X = embeddings[feat_name]
-    y = np.array(markets["hurst_exponent"])
     cv = KFold(10, shuffle=True, random_state=42)
     for i_train, i_test in tqdm(cv.split(X), desc="Going through splits.", total=10):
         for model, model_cls in models.items():
@@ -50,7 +55,11 @@ for feat_name, text in text_features.items():
             scores.append(dict(r2_score=r2, model=model, feature=feat_name))
 
 topic_model = SensTopic(
-    encoder=encoder, vectorizer=CountVectorizer(), feature_importance="axial"
+    encoder=encoder,
+    vectorizer=CountVectorizer(),
+    feature_importance="axial",
+    random_state=42,
+    sparsity=5.0,
 )
 doc_topic_matrix = topic_model.fit_transform(
     text_features["questions+descriptions"],
@@ -62,7 +71,6 @@ topic_model.print_representative_documents(
     14, text_features["questions+descriptions"], doc_topic_matrix
 )
 
-y = np.array(markets["hurst_exponent"])
 X = doc_topic_matrix.astype(np.float64)
 cv = KFold(10, shuffle=True, random_state=42)
 for i_train, i_test in tqdm(cv.split(X), desc="Going through splits.", total=10):

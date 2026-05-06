@@ -59,7 +59,7 @@ records = []
 for market_id in tqdm(timeseries, desc="Calculating hurst exponent for all markets."):
     ts = timeseries[market_id]
     try:
-        H, c, data = compute_Hc(timeseries[market_id], "random_walk")
+        H, c, data = compute_Hc(timeseries[market_id], "price")
         records.append(dict(market_id=market_id, hurst_exponent=H, c=c))
     except Exception:
         continue
