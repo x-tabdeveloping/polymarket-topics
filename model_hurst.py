@@ -12,7 +12,7 @@ from sklearn.model_selection import KFold
 from tqdm import tqdm
 from turftopic import SensTopic
 
-FEATURE_NAMES = ["hurst_exponent"]
+FEATURE_NAMES = ["hurst_exponent", "hurst_c", "mean_brier", "mean_abs_error", "abs_drift", "volatility", "adf_test_stat"]
 
 encoder = SentenceTransformer("all-MiniLM-L6-v2", model_kwargs=dict(dtype="float64"))
 

@@ -2,7 +2,6 @@
 
 # see https://stats.stackexchange.com/questions/161639/does-the-dickey-fuller-test-for-a-random-walk for ADF. If p-val > .05 -> unit root -> random walk
 
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -113,7 +112,7 @@ def prep_price_data(price_df, meta_data_df):
     
     return price_df
 
-if __name__ == "__main__":
+def main():
 # read in data
     prices = pd.read_csv("data/prices.csv")
     meta_data = pd.read_csv("data/market_metadata.csv")
@@ -154,8 +153,8 @@ if __name__ == "__main__":
         residuals = (ts - ts.shift(1)).dropna()
 
         #get drift and sd
-        drift = residuals.mean()
-        vol = residuals.std()
+        abs_drift = np.abs(residuals.mean())
+        volatility = residuals.std()
 
         #try adf
         try:
@@ -177,8 +176,8 @@ if __name__ == "__main__":
             include=include,
             mean_brier=mean_brier,
             mean_abs_error=mean_abs_error,
-            drift=drift,
-            vol=vol,
+            abs_drift=abs_drift,
+            volatility=volatility,
             adf_test_stat=adf_test_stat,
             adf_p_val=adf_p_val,
             hurst_exponent=H,
@@ -189,6 +188,10 @@ if __name__ == "__main__":
 
     results = pd.DataFrame.from_records(records)
     results.to_csv("data/features.csv", index = False)
+
+if __name__ == "__main__":
+    main()
+
 
     
 
