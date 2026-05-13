@@ -18,7 +18,6 @@ from turftopic import SensTopic, load_model
 EMBEDDING_MODELS = ["all-MiniLM-L6-v2", "all-mpnet-base-v2"]
 FEATURE_NAMES = [
     "hurst_exponent",
-    "hurst_c",
     "mean_brier",
     "mean_abs_error",
     "abs_drift",
