@@ -21,7 +21,7 @@ from turftopic import SensTopic, load_model
 EMBEDDING_MODELS = ["all-MiniLM-L6-v2", "all-mpnet-base-v2"]
 FEATURE_NAMES = [
     "hurst_exponent",
-    "mean_brier",
+    # "mean_brier",
     "mean_abs_error",
     "abs_drift",
     "volatility",
@@ -148,7 +148,6 @@ def main():
         index=embeddings["market_id"],
     )
     markets = markets.join(embedding_indices, how="inner")
-    markets = markets.dropna(subset=FEATURE_NAMES)
     # Assembling feature matrix from DataFrame
     Y = feature_matrix(markets, FEATURE_NAMES)
     ################# CALCULATING RAW EMBEDDING SCORES ###############
@@ -168,7 +167,9 @@ def main():
                 X = X[markets["embedding_index"]]
                 X_name = f"{encoder_name}|{text_feature_name}"
                 print(f"------{X_name}------")
-                scores.extend(kfold_cv(X, Y, REGRESSION_MODELS, X_name))
+                scores.extend(
+                    kfold_cv(X, Y, REGRESSION_MODELS, X_name, Y_names=FEATURE_NAMES)
+                )
         write_ndjson(scores, raw_scores_path)
 
     ################# TOPIC MODELLING ###############
