@@ -1,6 +1,7 @@
 import json
 from collections import defaultdict
 from pathlib import Path
+from typing import Iterable
 
 import joblib
 import numpy as np
@@ -78,21 +79,39 @@ def feature_matrix(data, feature_names):
 
 
 def kfold_cv(
-    X, Y, regression_models, X_name: str = None, n_splits=10, random_state=42
-) -> list[dict]:
-    scores = []
-    cv = KFold(n_splits, shuffle=True, random_state=random_state)
-    for i_train, i_test in tqdm(
-        cv.split(X), desc="Going through splits.", total=n_splits
-    ):
-        for model, model_cls in regression_models.items():
-            pipeline = make_pipeline(StandardScaler(), model_cls())
-            r2 = pipeline.fit(X[i_train], Y[i_train]).score(X[i_test], Y[i_test])
-            entry = dict(model=model, r2_score=r2)
-            if X_name is not None:
-                entry["feature"] = X_name
-            scores.append(entry)
-    return scores
+    X,
+    Y,
+    regression_models,
+    X_name: str = None,
+    Y_names: list[str] = None,
+    n_splits=10,
+    random_state=42,
+) -> Iterable[dict]:
+    if len(Y.shape) < 2:
+        Y = Y[:, None]
+    n_targets = Y.shape[-1]
+    if Y_names is None:
+        Y_names = [None] * n_targets
+    for y, y_name in zip(Y.T, Y_names):
+        if Y_names is not None:
+            print(f"============Predicting {y_name}===============")
+        # Filtering NaNs on a feature basis.
+        valid = np.isfinite(y)
+        cv = KFold(n_splits, shuffle=True, random_state=random_state)
+        x = X[valid]
+        y = y[valid]
+        for i_train, i_test in tqdm(
+            cv.split(x), desc="Going through splits.", total=n_splits
+        ):
+            for model, model_cls in regression_models.items():
+                pipeline = make_pipeline(StandardScaler(), model_cls())
+                r2 = pipeline.fit(x[i_train], y[i_train]).score(x[i_test], y[i_test])
+                entry = dict(model=model, r2_score=r2)
+                if X_name is not None:
+                    entry["input_feature"] = X_name
+                if y_name is not None:
+                    entry["output_feature"] = y_name
+                yield entry
 
 
 def main():
