@@ -16,7 +16,15 @@ from tqdm import tqdm
 from turftopic import SensTopic, load_model
 
 EMBEDDING_MODELS = ["all-MiniLM-L6-v2", "all-mpnet-base-v2"]
-FEATURE_NAMES = ["hurst_exponent"]
+FEATURE_NAMES = [
+    "hurst_exponent",
+    "hurst_c",
+    "mean_brier",
+    "mean_abs_error",
+    "abs_drift",
+    "volatility",
+    "adf_test_stat",
+]
 FEATURE_TRANSFORMS = {
     # We probit transform the Hurst exponent to unconstrain its range
     "hurst_exponent": Normal().icdf
