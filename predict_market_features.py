@@ -33,7 +33,7 @@ FEATURE_TRANSFORMS = {
 }
 REGRESSION_MODELS = {
     "Dummy": DummyRegressor,
-    "OLS": lambda: LinearRegression(random_state=42),
+    "OLS": lambda: LinearRegression(),
     "RandomForest": lambda: RandomForestRegressor(
         random_state=42, n_estimators=10, n_jobs=-1
     ),
@@ -65,6 +65,7 @@ def load_data(feature_names, feature_transforms):
     markets = markets.join(feature_df)
     for feature_name, transform in feature_transforms.items():
         markets[feature_name] = transform(markets[feature_name])
+    markets = markets[markets["include"] == True]
     return markets
 
 
@@ -93,10 +94,15 @@ def kfold_cv(
     if Y_names is None:
         Y_names = [None] * n_targets
     for y, y_name in zip(Y.T, Y_names):
-        if Y_names is not None:
-            print(f"============Predicting {y_name}===============")
         # Filtering NaNs on a feature basis.
         valid = np.isfinite(y)
+        orig_len = len(y)
+        filtered_len = (~valid).sum()
+        if Y_names is not None:
+            print(f"============Predicting {y_name}===============")
+            print(
+                f" - Filtered out {filtered_len}/{orig_len} datapoints due to missing data."
+            )
         cv = KFold(n_splits, shuffle=True, random_state=random_state)
         x = X[valid]
         y = y[valid]
@@ -133,7 +139,7 @@ def main():
     else:
         print("Embedding cache missing, computing embeddings from scratch:")
         embeddings = defaultdict(dict)
-        embeddings["market_id"] = markets["market_id"]
+        embeddings["market_id"] = markets.index
         for encoder_name in EMBEDDING_MODELS:
             print(" - with encoder: ", encoder_name)
             encoder = load_encoder(encoder_name)
@@ -175,8 +181,10 @@ def main():
     ################# TOPIC MODELLING ###############
     TOPIC_MODEL_DIR.mkdir(exist_ok=True)
     for encoder_name in EMBEDDING_MODELS:
-        model_path = TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder}.joblib")
-        doc_topic_matrix_path = TOPIC_MODEL_DIR.joinpath(f"dtm_senstopic-{encoder}.npy")
+        model_path = TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder_name}.joblib")
+        doc_topic_matrix_path = TOPIC_MODEL_DIR.joinpath(
+            f"dtm_senstopic-{encoder_name}.npy"
+        )
         if model_path.is_file() and doc_topic_matrix_path.is_file():
             print("Topic model found in cache, loading...")
             topic_model = load_model(model_path)
@@ -186,26 +194,32 @@ def main():
                 markets["embedding_index"]
             ]
             corpus = text_features["questions+descriptions"]
-            print("Fitting topic model for embeddings from ", encoder)
+            print("Fitting topic model for embeddings from ", encoder_name)
             topic_model = SensTopic(
                 encoder=load_encoder(encoder_name),
                 vectorizer=CountVectorizer(),
                 feature_importance="axial",
                 random_state=42,
-                sparsity=5.0,
+                sparsity=1.0,
             )
             doc_topic_matrix = topic_model.fit_transform(
                 corpus,
                 embeddings=text_embeddings,
             )
             topic_model.print_topics()
-            topic_model.to_disk(TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder}.joblib"))
+            topic_model.to_disk(
+                TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder_name}.joblib")
+            )
             np.save(
-                TOPIC_MODEL_DIR.joinpath(f"dtm_senstopic-{encoder}.npy"),
+                TOPIC_MODEL_DIR.joinpath(f"dtm_senstopic-{encoder_name}.npy"),
                 doc_topic_matrix,
             )
-        X_name = f"topics_{encoder}"
-        scores.extend(kfold_cv(doc_topic_matrix, Y, REGRESSION_MODELS, X_name))
+        X_name = f"topics_{encoder_name}"
+        scores.extend(
+            kfold_cv(
+                doc_topic_matrix, Y, REGRESSION_MODELS, X_name, Y_names=FEATURE_NAMES
+            )
+        )
     scores_df = pd.DataFrame.from_records(scores)
     print("Saving scores...")
     scores_df.to_csv(RESULTS_DIR.joinpath("scores.csv"))
