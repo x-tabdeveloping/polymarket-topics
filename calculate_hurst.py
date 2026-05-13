@@ -60,9 +60,11 @@ for market_id in tqdm(timeseries, desc="Calculating hurst exponent for all marke
     ts = timeseries[market_id]
     try:
         H, c, data = compute_Hc(timeseries[market_id], "price")
-        records.append(dict(market_id=market_id, hurst_exponent=H, c=c))
+        records.append(dict(market_id=market_id, hurst_exponent=H, hurst_c=c))
     except Exception:
+        records.append(dict(market_id=market_id, hurst_exponent=H, hurst_c=c))
         continue
 
 hurst_df = pd.DataFrame.from_records(records)
+
 hurst_df.to_csv("data/hurst_exponent.csv", index=False)
