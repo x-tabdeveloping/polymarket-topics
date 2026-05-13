@@ -31,8 +31,8 @@ FEATURE_TRANSFORMS = {
 }
 REGRESSION_MODELS = {
     "Dummy": DummyRegressor,
-    "OLS": LinearRegression,
-    "RandomForest": RandomForestRegressor,
+    "OLS": lambda: LinearRegression(random_state=42),
+    "RandomForest": lambda: RandomForestRegressor(random_state=42),
 }
 EMBEDDING_CACHE_PATH = Path("data/embeddings.joblib")
 RESULTS_DIR = Path("results")
@@ -111,6 +111,7 @@ def main():
     else:
         print("Embedding cache missing, computing embeddings from scratch:")
         embeddings = defaultdict(dict)
+        embeddings["market_id"] = markets["market_id"]
         for encoder_name in EMBEDDING_MODELS:
             print(" - with encoder: ", encoder_name)
             encoder = load_encoder(encoder_name)
@@ -120,9 +121,14 @@ def main():
             }
         print("Saving embeddings...")
         joblib.dump(embeddings, EMBEDDING_CACHE_PATH)
+    embedding_indices = pd.DataFrame(
+        dict(embedding_index=np.arange(len(embeddings["market_id"]))),
+        index=embeddings["market_id"],
+    )
+    markets = markets.join(embedding_indices, how="inner")
+    markets = markets.dropna(subset=FEATURE_NAMES)
     # Assembling feature matrix from DataFrame
     Y = feature_matrix(markets, FEATURE_NAMES)
-
     ################# CALCULATING RAW EMBEDDING SCORES ###############
     raw_scores_path = RESULTS_DIR.joinpath("raw_embedding_scores.ndjson")
     if raw_scores_path.is_file():
@@ -134,16 +140,18 @@ def main():
         print(
             "Calculating K-Fold cross validation R2 scores for all models and features."
         )
-        for emb_name, emb_data in embeddings.items():
+        for encoder_name in EMBEDDING_MODELS:
+            emb_data = embeddings[encoder_name]
             for text_feature_name, X in emb_data.items():
-                X_name = f"{emb_name}|{text_feature_name}"
+                X = X[markets["embedding_index"]]
+                X_name = f"{encoder_name}|{text_feature_name}"
                 print(f"------{X_name}------")
                 scores.extend(kfold_cv(X, Y, REGRESSION_MODELS, X_name))
         write_ndjson(scores, raw_scores_path)
 
     ################# TOPIC MODELLING ###############
     TOPIC_MODEL_DIR.mkdir(exist_ok=True)
-    for encoder, text_embeddings in embeddings.items():
+    for encoder_name in EMBEDDING_MODELS:
         model_path = TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder}.joblib")
         doc_topic_matrix_path = TOPIC_MODEL_DIR.joinpath(f"dtm_senstopic-{encoder}.npy")
         if model_path.is_file() and doc_topic_matrix_path.is_file():
@@ -151,17 +159,21 @@ def main():
             topic_model = load_model(model_path)
             doc_topic_matrix = np.load(doc_topic_matrix_path)
         else:
+            text_embeddings = embeddings[encoder_name]["questions+descriptions"][
+                markets["embedding_index"]
+            ]
+            corpus = text_features["questions+descriptions"]
             print("Fitting topic model for embeddings from ", encoder)
             topic_model = SensTopic(
-                encoder=load_encoder(encoder),
+                encoder=load_encoder(encoder_name),
                 vectorizer=CountVectorizer(),
                 feature_importance="axial",
                 random_state=42,
                 sparsity=5.0,
             )
             doc_topic_matrix = topic_model.fit_transform(
-                text_features["questions+descriptions"],
-                embeddings=text_embeddings["questions+descriptions"],
+                corpus,
+                embeddings=text_embeddings,
             )
             topic_model.print_topics()
             topic_model.to_disk(TOPIC_MODEL_DIR.joinpath(f"senstopic-{encoder}.joblib"))
