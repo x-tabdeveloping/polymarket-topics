@@ -12,6 +12,8 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import KFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 from turftopic import SensTopic, load_model
 
@@ -62,7 +64,6 @@ def load_data(feature_names, feature_transforms):
     markets = markets.join(feature_df)
     for feature_name, transform in feature_transforms.items():
         markets[feature_name] = transform(markets[feature_name])
-    markets = markets.dropna(subset=feature_names)
     return markets
 
 
@@ -85,7 +86,8 @@ def kfold_cv(
         cv.split(X), desc="Going through splits.", total=n_splits
     ):
         for model, model_cls in regression_models.items():
-            r2 = model_cls().fit(X[i_train], Y[i_train]).score(X[i_test], Y[i_test])
+            pipeline = make_pipeline(StandardScaler(), model_cls())
+            r2 = pipeline.fit(X[i_train], Y[i_train]).score(X[i_test], Y[i_test])
             entry = dict(model=model, r2_score=r2)
             if X_name is not None:
                 entry["feature"] = X_name
