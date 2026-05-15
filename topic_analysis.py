@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from scipy.stats import spearmanr
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import minmax_scale
@@ -79,15 +80,18 @@ def main():
             res = spearmanr(X[:, i_topic], y)
             heatmap[i_feat, i_topic] = res.statistic
             ps[i_feat, i_topic] = res.pvalue
-    heatmap = pd.DataFrame(heatmap, index=PREDICTABLE_FEATURES, columns=TOPIC_NAMES).T
-    ps = pd.DataFrame(ps, index=PREDICTABLE_FEATURES, columns=TOPIC_NAMES).T
+    feature_titles = [
+        " ".join(feature.split("_")).title() for feature in PREDICTABLE_FEATURES
+    ]
+    heatmap = pd.DataFrame(heatmap, index=feature_titles, columns=TOPIC_NAMES).T
+    ps = pd.DataFrame(ps, index=feature_titles, columns=TOPIC_NAMES).T
     fig = go.Figure(
         go.Heatmap(
             z=heatmap,
             text=ps.map(format_p),
-            colorscale="Earth",
+            colorscale="Earth_r",
             y=TOPIC_NAMES,
-            x=PREDICTABLE_FEATURES,
+            x=feature_titles,
             texttemplate="%{text}",
             textfont={"size": 10},
         )
@@ -98,6 +102,12 @@ def main():
     fig.write_image("figures/correlations.png", scale=3)
     fig.show()
 
+    fig = make_subplots(
+        rows=1,
+        cols=2,
+        column_widths=[0.2, 0.8],
+        horizontal_spacing=0.00,
+    )
     n_components = doc_topic.shape[1]
     # Concatenating pure topics (Identity matrix) and the document-topic-proportions
     _dt = np.concatenate((np.eye(n_components) * np.max(doc_topic), doc_topic))
@@ -129,7 +139,6 @@ def main():
     topic_colors = px.colors.sample_colorscale(
         color_scale, topic_color_pos, low=0, high=1, colortype="rgb"
     )
-    fig = go.Figure()
     # Adding a WebGL accelarated trace for documents
     fig = fig.add_scattergl(
         x=document_coordinates[:, 0],
@@ -139,6 +148,8 @@ def main():
         mode="markers",
         showlegend=False,
         text=question,
+        row=1,
+        col=2,
     )
     for i_topic in range(n_components):
         # This part of the script calculates whether the background color
@@ -164,45 +175,62 @@ def main():
             align="center",
             opacity=0.8,
             font=dict(size=10, color=fontcolor),
+            row=1,
+            col=2,
         )
-    fig = fig.update_layout(
-        template="plotly_white",
-        margin=dict(l=0, r=0, b=0, t=0),
-        width=500,
-        height=400,
+    fig = fig.update_xaxes(
+        showgrid=False,
+        zeroline=False,
+        showticklabels=False,
+        row=1,
+        col=2,
     )
-    fig = fig.update_xaxes(showgrid=False, zeroline=False, showticklabels=False)
-    fig = fig.update_yaxes(showgrid=False, zeroline=False, showticklabels=False)
-    fig.write_image("figures/topic_map.png", scale=3)
-    fig.show()
-
+    fig = fig.update_yaxes(
+        showgrid=False,
+        zeroline=False,
+        showticklabels=False,
+        row=1,
+        col=2,
+    )
     # I calculate a one-hot matrix
     onehot = doc_topic == doc_topic.max(axis=1)[:, None]
     # To then sum up the columns to get how many documents belong to a topic
     importance = onehot.sum(axis=0)
     order = np.argsort(importance)
     names = np.array(TOPIC_NAMES)
-    fig = px.bar(
+    subfig = px.bar(
         y=importance[order],
         x=[1] * len(order),
-        text=[f"<b>{n}" for n in names[order]],
+        text=[
+            f"<b>{name} ({n_docs:.0f})"
+            for name, n_docs in zip(names[order], importance[order])
+        ],
         color=names[order],
         color_discrete_map=dict(zip(TOPIC_NAMES, topic_colors)),
     )
+    for trace in subfig.data:
+        fig.add_trace(
+            trace,
+            row=1,
+            col=1,
+        )
     fig = fig.update_traces(
         showlegend=False,
         textposition="inside",
+        row=1,
+        col=1,
     )
-    fig = fig.update_yaxes(title="Number of Documents")
-    fig = fig.update_xaxes(title="", showticklabels=False)
+    fig = fig.update_yaxes(title="N Documents", row=1, col=1)
+    fig = fig.update_xaxes(title="", showticklabels=False, row=1, col=1)
+    fig = fig.update_layout(barmode="stack")
     fig = fig.update_layout(
         template="plotly_white",
-        margin=dict(l=0, r=50, b=0, t=0),
-        width=300,
+        margin=dict(l=0, r=0, b=0, t=0),
+        width=700,
         height=400,
-        barmode="stack",
+        font=dict(size=12),
     )
-    fig.write_image("figures/topic_distribution.png", scale=3)
+    fig.write_image("figures/topics.png", scale=3)
     fig.show()
 
 
