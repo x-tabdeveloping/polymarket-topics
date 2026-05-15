@@ -70,6 +70,7 @@ def prep_price_data(price_df, meta_data_df):
         (price_df["outcome_index"] == price_df["resolution"]).astype(int))
     return price_df
 
+
 def main():
     prices = pd.read_csv("data/prices.csv")
     meta_data = pd.read_csv("data/market_metadata.csv")
@@ -121,13 +122,8 @@ def main():
             hurst_c=c,
         ))
     results = pd.DataFrame.from_records(records)
-    results.to_csv("data/features.csv", index = False)
+    results.to_csv("data/features.csv", index=False)
+
 
 if __name__ == "__main__":
     main()
-
-
-    
-
-
-
