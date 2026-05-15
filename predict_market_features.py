@@ -197,14 +197,13 @@ def main():
             print("Fitting topic model for embeddings from ", encoder_name)
             topic_model = SensTopic(
                 encoder=load_encoder(encoder_name),
-                vectorizer=CountVectorizer(),
-                feature_importance="axial",
-                random_state=42,
+                vectorizer=CountVectorizer(min_df=5),
                 sparsity=1.0,
+                random_state=42,
             )
             doc_topic_matrix = topic_model.fit_transform(
                 corpus,
-                embeddings=text_embeddings,
+                embeddings=text_embeddings.astype(np.float32),
             )
             topic_model.print_topics()
             topic_model.to_disk(
@@ -217,7 +216,11 @@ def main():
         X_name = f"topics_{encoder_name}"
         scores.extend(
             kfold_cv(
-                doc_topic_matrix, Y, REGRESSION_MODELS, X_name, Y_names=FEATURE_NAMES
+                doc_topic_matrix.astype(np.float64),
+                Y,
+                REGRESSION_MODELS,
+                X_name,
+                Y_names=FEATURE_NAMES,
             )
         )
     scores_df = pd.DataFrame.from_records(scores)
