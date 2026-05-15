@@ -39,7 +39,7 @@ TOPIC_NAMES = [
     "Awards",
     "Super Bowl",
     "Soccer Matches",
-    "Latin American Politics",
+    "Elections",
     "Tweets",
     "Local Elections",
     "Golf",
@@ -48,7 +48,7 @@ TOPIC_NAMES = [
     "Poker",
     "Climate",
     "Crypto Ranges",
-    "Middle East",
+    "War",
     "Monetary Policy",
 ]
 
@@ -226,9 +226,12 @@ def main():
     fig = fig.update_layout(
         template="plotly_white",
         margin=dict(l=0, r=0, b=0, t=0),
+        font=dict(size=12),
+    )
+    fig.write_html("figures/topics.html")
+    fig = fig.update_layout(
         width=700,
         height=400,
-        font=dict(size=12),
     )
     fig.write_image("figures/topics.png", scale=3)
     fig.show()
